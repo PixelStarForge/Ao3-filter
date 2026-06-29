@@ -54,7 +54,8 @@ Click the extension icon in your browser toolbar to open the popup.
 
 1. Paste an author's profile URL (e.g., `https://archiveofourown.org/users/username`).
 2. Click **Generate CSS** or press `Enter`.
-3. Copy the generated CSS and add it to your AO3 Site Skin (see below).
+3. Alternatively, click **Block Anonymous Fics** to hide all anonymous works.
+4. Copy the generated CSS and add it to your AO3 Site Skin (see below).
 
 ### Tag Blocker
 

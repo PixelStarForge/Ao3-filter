@@ -241,16 +241,16 @@ function displayTagCategory(sectionId, title, tags) {
 
     tags.forEach(tag => {
         const label = document.createElement('label');
-        
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'tag-checkbox';
         checkbox.value = tag.encoded;
         checkbox.dataset.tag = tag.display;
-        
+
         const span = document.createElement('span');
         span.textContent = tag.display;
-        
+
         label.appendChild(checkbox);
         label.appendChild(span);
         listDiv.appendChild(label);
@@ -269,25 +269,25 @@ function updateTagCSS() {
         css += `.blurb:has(a[href*="${cb.value}"]) { display: none !important; }\n\n`;
     });
     document.getElementById('tagsCssCode').textContent = css || '/* Select tags to generate CSS */';
-    
+
     const stats = document.getElementById('tagsStats');
-  
+
     while (stats.firstChild) {
         stats.removeChild(stats.firstChild);
     }
-    
-    
+
+
     const item1 = document.createElement('div');
     item1.className = 'stat-item';
     item1.innerHTML = `Selected: <span class="stat-value">${selected.length}</span> tag(s)`;
-    
+
     const item2 = document.createElement('div');
     item2.className = 'stat-item';
     item2.innerHTML = `CSS rules: <span class="stat-value">${selected.length}</span>`;
-    
+
     stats.appendChild(item1);
     stats.appendChild(item2);
-    
+
     document.getElementById('tagsCopyBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
 }
 
@@ -372,11 +372,11 @@ async function fetchAuthorFics() {
 
 function displayFandoms() {
     const container = document.getElementById('fandosList');
-    
+
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }
-    
+
     container.innerHTML = '';
 
     Object.entries(allFics).forEach(([fandom, fics]) => {
@@ -457,25 +457,25 @@ function updateFicsCSS() {
         css += `.blurb.work[id*="work-${cb.value}"] { display: none !important; }\n`;
     });
     document.getElementById('ficsCssCode').textContent = css || '/* Select fics to generate CSS */';
-    
+
     const stats = document.getElementById('ficsStats');
-   
+
     while (stats.firstChild) {
         stats.removeChild(stats.firstChild);
     }
-    
-    
+
+
     const item1 = document.createElement('div');
     item1.className = 'stat-item';
     item1.innerHTML = `Selected: <span class="stat-value">${selected.length}</span> fic(s)`;
-    
+
     const item2 = document.createElement('div');
     item2.className = 'stat-item';
     item2.innerHTML = `CSS rules: <span class="stat-value">${selected.length}</span>`;
-    
+
     stats.appendChild(item1);
     stats.appendChild(item2);
-    
+
     document.getElementById('ficsCopyBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
 }
 
@@ -605,4 +605,14 @@ document.addEventListener('DOMContentLoaded', function () {
             updateFicsCSS();
         }
     });
+});
+
+
+// --- Block Anonymous Fics ---
+document.getElementById('blockAnonymousBtn')?.addEventListener('click', function () {
+    const css = `.blurb.work:not([class*="user-"]) {\n  display: none !important;\n}`;
+    document.getElementById('authorCssCode').textContent = css;
+    document.getElementById('authorCssOutput').style.display = 'block';
+    document.getElementById('authorCopyBtnGroup').style.display = 'flex';
+    showToast('CSS generated to hide anonymous fics', 'success');
 });
