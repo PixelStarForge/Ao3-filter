@@ -25,6 +25,7 @@
             <button class="tab-btn active" data-tab="author">👤 Author Blocker</button>
             <button class="tab-btn" data-tab="tags">🏷️ Tag Blocker</button>
             <button class="tab-btn" data-tab="fics">📚 Block Fics</button>
+            <button class="tab-btn" data-tab="blocks">📋 My Blocks</button>
         </div>
 
         <!-- Author Blocker Tab -->
@@ -58,6 +59,9 @@
                     <button class="btn btn-secondary btn-small" data-download="authorCssCode"
                         data-filename="ao3-author-blocker.css">⬇️ Download</button>
                 </div>
+                <div class="button-group" id="authorAddBtnGroup" style="display: none; margin-top: 8px;">
+                    <button class="btn btn-secondary btn-small" id="authorAddBtn">➕ Add to Block List</button>
+                </div>
             </div>
         </div>
 
@@ -82,9 +86,12 @@
             <div id="tagOutput" style="display: none;">
                 <div class="form-group">
                     <label>Select Tags to Block</label>
-                    <div class="button-group" style="margin-top: 12px; margin-bottom: 12px;">
+                    <div class="button-group" id="tagAddBtnGroup"
+                        style="margin-top: 12px; margin-bottom: 12px; display: none;">
                         <button class="btn btn-secondary btn-small" id="selectAllTagsBtn">✓ Select All</button>
                         <button class="btn btn-secondary btn-small" id="clearAllTagsBtn">✗ Clear All</button>
+                        <button class="btn btn-primary btn-small" id="tagAddBtn">➕ Add Selected
+                            to Block List</button>
                     </div>
                     <div id="tagsWarningsSection"></div>
                     <div id="tagsRelationshipsSection"></div>
@@ -127,9 +134,11 @@
                 <div class="form-group">
                     <input type="text" id="ficsSearchInput" placeholder="🔍 Search fics..."
                         style="margin-bottom: 12px;" />
-                    <div class="button-group">
+                    <div class="button-group" id="ficAddBtnGroup" style="display: none;">
                         <button class="btn btn-secondary btn-small" id="selectAllFicsBtn">✓ Select All</button>
                         <button class="btn btn-secondary btn-small" id="clearAllFicsBtn">✗ Clear All</button>
+                        <button class="btn btn-primary btn-small" id="ficAddBtn">➕ Add Selected
+                            to Block List</button>
                     </div>
                 </div>
                 <div id="fandosList"></div>
@@ -144,6 +153,48 @@
                             data-filename="ao3-fic-blocker.css">⬇️ Download</button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- My Blocks Tab -->
+        <!-- My Blocks Tab -->
+        <div id="blocks" class="tab-content">
+            <h3 style="margin-bottom: 12px;">📋 Your Block List</h3>
+
+            <div class="form-group">
+                <label>Blocked Authors</label>
+                <div id="blockedAuthorsList" class="blocked-list"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Blocked Tags</label>
+                <div id="blockedTagsList" class="blocked-list"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Blocked Fics</label>
+                <div id="blockedFicsList" class="blocked-list"></div>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="blockAnonymousToggle"> 🚫 Block Anonymous Fics
+                </label>
+            </div>
+
+            <hr style="border-color: #444; margin: 16px 0;">
+
+            <div class="form-group">
+                <label>Export / Import</label>
+                <div class="button-group">
+                    <button class="btn btn-secondary btn-small" id="exportBtn">📤 Export JSON</button>
+                    <button class="btn btn-secondary btn-small" id="importBtn">📥 Import JSON</button>
+                    <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                </div>
+                <p style="font-size: 12px; color: #888; margin-top: 8px;">
+                    Export your block list as a JSON file to backup or edit manually.
+                    Import a previously exported file to restore your settings.
+                </p>
             </div>
         </div>
     </div>

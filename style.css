@@ -654,3 +654,137 @@ body.light .fandom-list label {
 body.light .credit {
     color: #999;
 }
+
+.blocked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #252525;
+    border-radius: 6px;
+    min-height: 40px;
+    border: 1px solid #444;
+}
+
+body.light .blocked-list {
+    background: #f9f9f9;
+    border-color: #e0e0e0;
+}
+
+.blocked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #3a3a3a;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #e0e0e0;
+    border: 1px solid #555;
+}
+
+body.light .blocked-chip {
+    background: #e8e8e8;
+    color: #333;
+    border-color: #ccc;
+}
+
+.blocked-chip .remove-chip {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    transition: color 0.2s;
+}
+
+.blocked-chip .remove-chip:hover {
+    color: #e74c3c;
+}
+
+.empty-message {
+    color: #888;
+    font-style: italic;
+    padding: 8px;
+}
+
+body.light .empty-message {
+    color: #999;
+}
+
+.blocked-category {
+    margin-bottom: 8px;
+}
+
+.blocked-category-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8892f0;
+    margin-bottom: 4px;
+}
+
+.blocked-chip-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.blocked-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #252525;
+    border-radius: 6px;
+    min-height: 40px;
+    border: 1px solid #444;
+    flex-direction: column;
+}
+
+body.light .blocked-list {
+    background: #f9f9f9;
+    border-color: #e0e0e0;
+}
+
+.blocked-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #3a3a3a;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #e0e0e0;
+    border: 1px solid #555;
+}
+
+body.light .blocked-chip {
+    background: #e8e8e8;
+    color: #333;
+    border-color: #ccc;
+}
+
+.blocked-chip .remove-chip {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    transition: color 0.2s;
+}
+
+.blocked-chip .remove-chip:hover {
+    color: #e74c3c;
+}
+
+.empty-message {
+    color: #888;
+    font-style: italic;
+    padding: 8px;
+}
+
+body.light .empty-message {
+    color: #999;
+}

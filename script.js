@@ -2,25 +2,37 @@
 //  STORAGE HELPERS
 // ========================
 
+function decodeHTML(text) {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+}
+
 function saveToStorage(key, value) {
     chrome.storage.local.set({ [key]: value });
 }
 
 function getFromStorage(key, callback) {
     chrome.storage.local.get([key], (result) => {
-        callback(result[key] || '');
+        callback(result[key] || null);
+    });
+}
+
+function getFromStoragePromise(key) {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([key], (result) => {
+            resolve(result[key] || null);
+        });
     });
 }
 
 // ========================
-//  DARK MODE TOGGLE
+//  DARK MODE
 // ========================
 
 function isDarkModeEnabled() {
-    // If we have no light class, we're in dark mode
     return !document.body.classList.contains('light');
 }
-
 
 function setDarkMode(dark) {
     if (dark) {
@@ -30,7 +42,6 @@ function setDarkMode(dark) {
         document.body.classList.add('light');
         document.getElementById('darkModeToggle').textContent = '☀️';
     }
-    // Store as string so it can be compared correctly
     saveToStorage('darkMode', String(dark));
 }
 
@@ -39,13 +50,95 @@ function toggleDarkMode() {
 }
 
 // ========================
-//  FETCH HELPERS (direct)
+//  BLOCK LIST MANAGEMENT
+// ========================
+
+// Storage structure:
+// blockedAuthors: ["username1", "username2"]
+// blockedTags: [{ encoded: "tag1", display: "Tag Name", category: "warnings" }, ...]
+// blockedFics: [{ id: "12345", title: "Fic Title" }, ...]
+// blockAnonymous: true/false
+
+async function addToBlocked(type, items) {
+    const keyMap = {
+        'author': 'blockedAuthors',
+        'tag': 'blockedTags',
+        'fic': 'blockedFics'
+    };
+    const key = keyMap[type];
+    if (!key) return;
+
+    const existing = await getFromStoragePromise(key);
+    let list = [];
+
+    if (typeof existing === 'string') {
+        try { list = JSON.parse(existing); } catch (e) { list = []; }
+    } else if (Array.isArray(existing)) {
+        list = existing;
+    }
+
+    // Add items, avoiding duplicates
+    if (type === 'author') {
+        items.forEach(item => {
+            if (!list.includes(item)) list.push(item);
+        });
+    } else if (type === 'tag') {
+        items.forEach(item => {
+            const exists = list.some(t => t.encoded === item.encoded);
+            if (!exists) list.push(item);
+        });
+    } else if (type === 'fic') {
+        items.forEach(item => {
+            const exists = list.some(f => f.id === item.id);
+            if (!exists) list.push(item);
+        });
+    }
+
+    saveToStorage(key, JSON.stringify(list));
+    // Re-render the list UI
+    if (type === 'author') renderBlockedAuthors();
+    else if (type === 'tag') renderBlockedTags();
+    else if (type === 'fic') renderBlockedFics();
+}
+
+async function removeFromBlocked(type, value) {
+    const keyMap = {
+        'author': 'blockedAuthors',
+        'tag': 'blockedTags',
+        'fic': 'blockedFics'
+    };
+    const key = keyMap[type];
+    if (!key) return;
+
+    const existing = await getFromStoragePromise(key);
+    let list = [];
+    if (typeof existing === 'string') {
+        try { list = JSON.parse(existing); } catch (e) { list = []; }
+    } else if (Array.isArray(existing)) {
+        list = existing;
+    }
+
+    if (type === 'author') {
+        list = list.filter(item => item !== value);
+    } else if (type === 'tag') {
+        list = list.filter(item => item.encoded !== value);
+    } else if (type === 'fic') {
+        list = list.filter(item => item.id !== value);
+    }
+
+    saveToStorage(key, JSON.stringify(list));
+    if (type === 'author') renderBlockedAuthors();
+    else if (type === 'tag') renderBlockedTags();
+    else if (type === 'fic') renderBlockedFics();
+    showToast(`${type} removed`, 'info');
+}
+
+// ========================
+//  FETCH HELPERS
 // ========================
 
 async function fetchPageHTML(url) {
-    const response = await fetch(url, {
-        credentials: 'include'
-    });
+    const response = await fetch(url, { credentials: 'include' });
     if (!response.ok) {
         throw new Error(`HTTP ${response.status} - ${response.statusText}`);
     }
@@ -144,8 +237,10 @@ async function generateAuthorCSS() {
         document.getElementById('authorCssCode').textContent = css;
         document.getElementById('authorCssOutput').style.display = 'block';
         document.getElementById('authorCopyBtnGroup').style.display = 'flex';
+        document.getElementById('authorAddBtnGroup').style.display = 'flex';
+        // Store the username for the "Add to Block List" button
+        document.getElementById('authorAddBtn').dataset.username = username;
         showToast(`CSS generated for @${username}`, 'success');
-        // Save to storage
         saveToStorage('lastAuthorUrl', url);
     } catch (error) {
         showMessage(message, `Error: ${error.message}`, 'error');
@@ -155,9 +250,33 @@ async function generateAuthorCSS() {
     }
 }
 
+function addAuthorToBlockList() {
+    const username = document.getElementById('authorAddBtn').dataset.username;
+    if (!username) {
+        showToast('No author to add', 'error');
+        return;
+    }
+    addToBlocked('author', [username]);
+    showToast(`Added @${username} to block list`, 'success');
+}
+
+function blockAnonymousFics() {
+    const css = `.blurb.work:not([class*="user-"]) {\n  display: none !important;\n}`;
+    document.getElementById('authorCssCode').textContent = css;
+    document.getElementById('authorCssOutput').style.display = 'block';
+    document.getElementById('authorCopyBtnGroup').style.display = 'flex';
+    showToast('CSS generated to hide anonymous fics', 'success');
+    // Save preference
+    saveToStorage('blockAnonymous', true);
+    const toggle = document.getElementById('blockAnonymousToggle');
+    if (toggle) toggle.checked = true;
+}
+
 // ========================
 //  TAG BLOCKER
 // ========================
+
+let currentTags = [];
 
 async function fetchFicTags() {
     const url = document.getElementById('ficUrl').value.trim();
@@ -180,19 +299,21 @@ async function fetchFicTags() {
         const metadataMatch = html.match(/<dl class="work meta group">([\s\S]*?)<\/dl>/);
         const metadata = metadataMatch ? metadataMatch[0] : html;
 
-        const warnings = extractTagsByClass(metadata, 'warning');
-        const relationships = extractTagsByClass(metadata, 'relationship');
-        const characters = extractTagsByClass(metadata, 'character');
-        const freeforms = extractTagsByClass(metadata, 'freeform');
+        const warnings = extractTagsByClass(metadata, 'warning', 'warnings');
+        const relationships = extractTagsByClass(metadata, 'relationship', 'relationships');
+        const characters = extractTagsByClass(metadata, 'character', 'characters');
+        const freeforms = extractTagsByClass(metadata, 'freeform', 'freeforms');
 
-        displayTagCategory('tagsWarningsSection', 'Warnings', warnings);
-        displayTagCategory('tagsRelationshipsSection', 'Relationships', relationships);
-        displayTagCategory('tagsCharactersSection', 'Characters', characters);
-        displayTagCategory('tagsExtraSection', 'Extra Tags', freeforms);
+        currentTags = [...warnings, ...relationships, ...characters, ...freeforms];
+
+        displayTagCategory('tagsWarningsSection', '⚠️ Warnings', warnings);
+        displayTagCategory('tagsRelationshipsSection', '💕 Relationships', relationships);
+        displayTagCategory('tagsCharactersSection', '👤 Characters', characters);
+        displayTagCategory('tagsExtraSection', '🏷️ Additional Tags', freeforms);
 
         document.getElementById('tagOutput').style.display = 'block';
+        document.getElementById('tagAddBtnGroup').style.display = 'none';
         showToast('Tags loaded', 'success');
-        // Save to storage
         saveToStorage('lastFicUrl', url);
     } catch (error) {
         showMessage(message, `Error: ${error.message}`, 'error');
@@ -202,7 +323,7 @@ async function fetchFicTags() {
     }
 }
 
-function extractTagsByClass(metadata, className) {
+function extractTagsByClass(metadata, className, category) {
     const tags = [];
     const regex = new RegExp(`<dd class="${className}[^"]*"[^>]*>([\\s\\S]*?)<\\/dd>`, "i");
     const match = regex.exec(metadata);
@@ -212,19 +333,25 @@ function extractTagsByClass(metadata, className) {
     const tagRegex = /<a class="tag" href="\/tags\/([^"]+)\/works">([^<]+)<\/a>/g;
     let tagMatch;
     while ((tagMatch = tagRegex.exec(content)) !== null) {
-        tags.push({ encoded: tagMatch[1], display: tagMatch[2] });
+        tags.push({
+            encoded: tagMatch[1],
+            display: decodeHTML(tagMatch[2]),
+            category: category
+        });
     }
     return tags;
 }
 
 function displayTagCategory(sectionId, title, tags) {
     const section = document.getElementById(sectionId);
-
     while (section.firstChild) {
         section.removeChild(section.firstChild);
     }
-
     if (tags.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = 'No tags found';
+        section.appendChild(empty);
         return;
     }
 
@@ -241,16 +368,14 @@ function displayTagCategory(sectionId, title, tags) {
 
     tags.forEach(tag => {
         const label = document.createElement('label');
-
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'tag-checkbox';
         checkbox.value = tag.encoded;
         checkbox.dataset.tag = tag.display;
-
+        checkbox.dataset.category = tag.category;
         const span = document.createElement('span');
         span.textContent = tag.display;
-
         label.appendChild(checkbox);
         label.appendChild(span);
         listDiv.appendChild(label);
@@ -258,7 +383,6 @@ function displayTagCategory(sectionId, title, tags) {
 
     categoryDiv.appendChild(listDiv);
     section.appendChild(categoryDiv);
-    updateTagCSS();
 }
 
 function updateTagCSS() {
@@ -270,25 +394,37 @@ function updateTagCSS() {
     });
     document.getElementById('tagsCssCode').textContent = css || '/* Select tags to generate CSS */';
 
+    // Update stats
     const stats = document.getElementById('tagsStats');
-
     while (stats.firstChild) {
         stats.removeChild(stats.firstChild);
     }
-
-
     const item1 = document.createElement('div');
     item1.className = 'stat-item';
     item1.innerHTML = `Selected: <span class="stat-value">${selected.length}</span> tag(s)`;
-
     const item2 = document.createElement('div');
     item2.className = 'stat-item';
     item2.innerHTML = `CSS rules: <span class="stat-value">${selected.length}</span>`;
-
     stats.appendChild(item1);
     stats.appendChild(item2);
 
     document.getElementById('tagsCopyBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
+    document.getElementById('tagAddBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
+}
+
+function addSelectedTagsToBlockList() {
+    const checkboxes = document.querySelectorAll('.tag-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast('No tags selected', 'error');
+        return;
+    }
+    const tags = Array.from(checkboxes).map(cb => ({
+        encoded: cb.value,
+        display: cb.dataset.tag,
+        category: cb.dataset.category
+    }));
+    addToBlocked('tag', tags);
+    showToast(`Added ${tags.length} tag(s) to block list`, 'success');
 }
 
 function selectAllTags() {
@@ -359,8 +495,8 @@ async function fetchAuthorFics() {
         allFics = fandoms;
         displayFandoms();
         document.getElementById('ficsOutput').style.display = 'block';
+        document.getElementById('ficAddBtnGroup').style.display = 'none';
         showToast(`Loaded ${workCount} fic(s)`, 'success');
-        // Save to storage
         saveToStorage('lastFicAuthorUrl', url);
     } catch (error) {
         showMessage(message, `Error: ${error.message}`, 'error');
@@ -372,12 +508,9 @@ async function fetchAuthorFics() {
 
 function displayFandoms() {
     const container = document.getElementById('fandosList');
-
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }
-
-    container.innerHTML = '';
 
     Object.entries(allFics).forEach(([fandom, fics]) => {
         const section = document.createElement('div');
@@ -395,7 +528,15 @@ function displayFandoms() {
         fics.forEach(fic => {
             const label = document.createElement('label');
             label.className = 'fic-item';
-            label.innerHTML = `<input type="checkbox" class="fic-checkbox" value="${fic.id}"> <span>${fic.title}</span>`;
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'fic-checkbox';
+            checkbox.value = fic.id;
+            checkbox.dataset.title = fic.title;
+            const span = document.createElement('span');
+            span.textContent = fic.title;
+            label.appendChild(checkbox);
+            label.appendChild(span);
             list.appendChild(label);
         });
 
@@ -454,29 +595,39 @@ function updateFicsCSS() {
     const selected = Array.from(checkboxes).filter(cb => cb.checked);
     let css = '';
     selected.forEach(cb => {
-        css += `.blurb.work[id*="work-${cb.value}"] { display: none !important; }\n`;
+        css += `.blurb.work[id*="work_${cb.value}"] { display: none !important; }\n`;
     });
     document.getElementById('ficsCssCode').textContent = css || '/* Select fics to generate CSS */';
 
     const stats = document.getElementById('ficsStats');
-
     while (stats.firstChild) {
         stats.removeChild(stats.firstChild);
     }
-
-
     const item1 = document.createElement('div');
     item1.className = 'stat-item';
     item1.innerHTML = `Selected: <span class="stat-value">${selected.length}</span> fic(s)`;
-
     const item2 = document.createElement('div');
     item2.className = 'stat-item';
     item2.innerHTML = `CSS rules: <span class="stat-value">${selected.length}</span>`;
-
     stats.appendChild(item1);
     stats.appendChild(item2);
 
     document.getElementById('ficsCopyBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
+    document.getElementById('ficAddBtnGroup').style.display = selected.length > 0 ? 'flex' : 'none';
+}
+
+function addSelectedFicsToBlockList() {
+    const checkboxes = document.querySelectorAll('.fic-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast('No fics selected', 'error');
+        return;
+    }
+    const fics = Array.from(checkboxes).map(cb => ({
+        id: cb.value,
+        title: cb.dataset.title
+    }));
+    addToBlocked('fic', fics);
+    showToast(`Added ${fics.length} fic(s) to block list`, 'success');
 }
 
 function selectAllFics() {
@@ -487,6 +638,286 @@ function selectAllFics() {
 function clearAllFics() {
     document.querySelectorAll('.fic-checkbox').forEach(cb => cb.checked = false);
     updateFicsCSS();
+}
+
+// ========================
+//  RENDER BLOCKED LISTS (UI)
+// ========================
+
+async function renderBlockedAuthors() {
+    const container = document.getElementById('blockedAuthorsList');
+    if (!container) return;
+    const data = await getFromStoragePromise('blockedAuthors');
+    let list = [];
+    if (typeof data === 'string') {
+        try { list = JSON.parse(data); } catch (e) { list = []; }
+    } else if (Array.isArray(data)) {
+        list = data;
+    }
+
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+
+    if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = 'No authors blocked.';
+        container.appendChild(empty);
+        return;
+    }
+
+    list.forEach(author => {
+        const chip = document.createElement('span');
+        chip.className = 'blocked-chip';
+        chip.innerHTML = `${author} <button class="remove-chip" data-type="author" data-value="${author}">✕</button>`;
+        container.appendChild(chip);
+    });
+
+    container.querySelectorAll('.remove-chip').forEach(btn => {
+        btn.addEventListener('click', function () {
+            removeFromBlocked('author', this.dataset.value);
+        });
+    });
+}
+
+async function renderBlockedTags() {
+    const container = document.getElementById('blockedTagsList');
+    if (!container) return;
+    const data = await getFromStoragePromise('blockedTags');
+    let list = [];
+    if (typeof data === 'string') {
+        try { list = JSON.parse(data); } catch (e) { list = []; }
+    } else if (Array.isArray(data)) {
+        list = data;
+    }
+
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+
+    if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = 'No tags blocked.';
+        container.appendChild(empty);
+        return;
+    }
+
+    // Group by category
+    const categories = {};
+    list.forEach(tag => {
+        const cat = tag.category || 'other';
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push(tag);
+    });
+
+    const catNames = {
+        'warnings': '⚠️ Warnings',
+        'relationships': '💕 Relationships',
+        'characters': '👤 Characters',
+        'freeforms': '🏷️ Additional Tags',
+        'other': '📌 Other'
+    };
+
+    Object.entries(categories).forEach(([cat, tags]) => {
+        const catDiv = document.createElement('div');
+        catDiv.className = 'blocked-category';
+
+        const catTitle = document.createElement('div');
+        catTitle.className = 'blocked-category-title';
+        catTitle.textContent = catNames[cat] || cat;
+        catDiv.appendChild(catTitle);
+
+        const chipContainer = document.createElement('div');
+        chipContainer.className = 'blocked-chip-container';
+
+        tags.forEach(tag => {
+            const chip = document.createElement('span');
+            chip.className = 'blocked-chip';
+            chip.innerHTML = `${decodeHTML(tag.display)} <button class="remove-chip" data-type="tag" data-value="${tag.encoded}">✕</button>`;
+            chipContainer.appendChild(chip);
+        });
+
+        catDiv.appendChild(chipContainer);
+        container.appendChild(catDiv);
+    });
+
+    container.querySelectorAll('.remove-chip').forEach(btn => {
+        btn.addEventListener('click', function () {
+            removeFromBlocked('tag', this.dataset.value);
+        });
+    });
+}
+
+async function renderBlockedFics() {
+    const container = document.getElementById('blockedFicsList');
+    if (!container) return;
+    const data = await getFromStoragePromise('blockedFics');
+    let list = [];
+    if (typeof data === 'string') {
+        try { list = JSON.parse(data); } catch (e) { list = []; }
+    } else if (Array.isArray(data)) {
+        list = data;
+    }
+
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+
+    if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = 'No fics blocked.';
+        container.appendChild(empty);
+        return;
+    }
+
+    list.forEach(fic => {
+        const chip = document.createElement('span');
+        chip.className = 'blocked-chip';
+        chip.innerHTML = `${fic.title} <button class="remove-chip" data-type="fic" data-value="${fic.id}">✕</button>`;
+        container.appendChild(chip);
+    });
+
+    container.querySelectorAll('.remove-chip').forEach(btn => {
+        btn.addEventListener('click', function () {
+            removeFromBlocked('fic', this.dataset.value);
+        });
+    });
+}
+
+// ========================
+//  EXPORT / IMPORT JSON
+// ========================
+
+async function generateCSSFromPrefs() {
+    const authors = await getFromStoragePromise('blockedAuthors');
+    const tags = await getFromStoragePromise('blockedTags');
+    const fics = await getFromStoragePromise('blockedFics');
+    const anonymous = await getFromStoragePromise('blockAnonymous');
+
+    let css = '';
+
+    if (anonymous === true) {
+        css += `.blurb.work:not([class*="user-"]) { display: none !important; }\n`;
+    }
+
+    let parsedAuthors = [];
+    if (typeof authors === 'string') {
+        try { parsedAuthors = JSON.parse(authors); } catch (e) { }
+    } else if (Array.isArray(authors)) {
+        parsedAuthors = authors;
+    }
+    parsedAuthors.forEach(author => {
+        css += `.blurb:has(a[href*="/users/${author}/pseuds"]) { display: none !important; }\n`;
+    });
+
+    let parsedTags = [];
+    if (typeof tags === 'string') {
+        try { parsedTags = JSON.parse(tags); } catch (e) { }
+    } else if (Array.isArray(tags)) {
+        parsedTags = tags;
+    }
+    parsedTags.forEach(tag => {
+        const encoded = tag.encoded || tag;
+        css += `.blurb:has(a[href*="${encoded}"]) { display: none !important; }\n`;
+    });
+
+    let parsedFics = [];
+    if (typeof fics === 'string') {
+        try { parsedFics = JSON.parse(fics); } catch (e) { }
+    } else if (Array.isArray(fics)) {
+        parsedFics = fics;
+    }
+    parsedFics.forEach(fic => {
+        const id = fic.id || fic;
+        css += `.blurb.work[id*="work_${id}"] { display: none !important; }\n`;
+    });
+
+    return css;
+}
+
+async function exportBlockList() {
+    const authors = await getFromStoragePromise('blockedAuthors');
+    const tags = await getFromStoragePromise('blockedTags');
+    const fics = await getFromStoragePromise('blockedFics');
+    const anonymous = await getFromStoragePromise('blockAnonymous');
+
+    let parsedAuthors = [];
+    let parsedTags = [];
+    let parsedFics = [];
+
+    if (typeof authors === 'string') {
+        try { parsedAuthors = JSON.parse(authors); } catch (e) { }
+    } else if (Array.isArray(authors)) {
+        parsedAuthors = authors;
+    }
+
+    if (typeof tags === 'string') {
+        try { parsedTags = JSON.parse(tags); } catch (e) { }
+    } else if (Array.isArray(tags)) {
+        parsedTags = tags;
+    }
+
+    if (typeof fics === 'string') {
+        try { parsedFics = JSON.parse(fics); } catch (e) { }
+    } else if (Array.isArray(fics)) {
+        parsedFics = fics;
+    }
+
+    const data = {
+        version: '1.0',
+        blockedAuthors: parsedAuthors,
+        blockedTags: parsedTags,
+        blockedFics: parsedFics,
+        blockAnonymous: anonymous === true
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ao3-filter-blocklist.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Block list exported!', 'success');
+}
+
+function importBlockList(file) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!data.version) {
+                showToast('Invalid file format', 'error');
+                return;
+            }
+            if (data.blockedAuthors) saveToStorage('blockedAuthors', JSON.stringify(data.blockedAuthors));
+            if (data.blockedTags) saveToStorage('blockedTags', JSON.stringify(data.blockedTags));
+            if (data.blockedFics) saveToStorage('blockedFics', JSON.stringify(data.blockedFics));
+            if (data.blockAnonymous !== undefined) saveToStorage('blockAnonymous', data.blockAnonymous);
+
+            renderBlockedAuthors();
+            renderBlockedTags();
+            renderBlockedFics();
+            const toggle = document.getElementById('blockAnonymousToggle');
+            if (toggle) toggle.checked = data.blockAnonymous || false;
+            showToast('Block list imported!', 'success');
+
+            // Generate and inject CSS after import
+            generateCSSFromPrefs().then(css => {
+                chrome.tabs.query({ url: '*://archiveofourown.org/*' }, (tabs) => {
+                    tabs.forEach(tab => {
+                        chrome.tabs.sendMessage(tab.id, { action: 'injectCSS', css: css }).catch(() => { });
+                    });
+                });
+            });
+        } catch (err) {
+            showToast('Error parsing file: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
 }
 
 // ========================
@@ -514,7 +945,7 @@ function fuzzySearch(query, items) {
 }
 
 // ========================
-//  KEYBOARD SHORTCUTS (Enter)
+//  KEYBOARD SHORTCUTS
 // ========================
 
 document.addEventListener('keypress', (e) => {
@@ -533,22 +964,17 @@ document.addEventListener('keypress', (e) => {
 document.addEventListener('DOMContentLoaded', function () {
 
     // --- Dark mode ---
-    getFromStorage('darkMode', (value) => {
-        // value is a string: '' (not set), 'true', or 'false'
-        const dark = value === '' ? true : (value === 'true');
+    chrome.storage.local.get(['darkMode'], (result) => {
+        const dark = result.darkMode === undefined ? true : (result.darkMode === 'true');
         setDarkMode(dark);
     });
     document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
 
     // --- Restore saved inputs ---
-    getFromStorage('lastAuthorUrl', (val) => {
-        if (val) document.getElementById('authorUrl').value = val;
-    });
-    getFromStorage('lastFicUrl', (val) => {
-        if (val) document.getElementById('ficUrl').value = val;
-    });
-    getFromStorage('lastFicAuthorUrl', (val) => {
-        if (val) document.getElementById('ficAuthorUrl').value = val;
+    chrome.storage.local.get(['lastAuthorUrl', 'lastFicUrl', 'lastFicAuthorUrl'], (result) => {
+        if (result.lastAuthorUrl) document.getElementById('authorUrl').value = result.lastAuthorUrl;
+        if (result.lastFicUrl) document.getElementById('ficUrl').value = result.lastFicUrl;
+        if (result.lastFicAuthorUrl) document.getElementById('ficAuthorUrl').value = result.lastFicAuthorUrl;
     });
 
     // --- Tab switching ---
@@ -562,21 +988,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Clear buttons ---
     document.querySelectorAll('[data-clear]').forEach(btn => {
         btn.addEventListener('click', function () {
-            const inputId = this.dataset.clear;
-            clearInput(inputId);
+            clearInput(this.dataset.clear);
         });
     });
 
     // --- Author ---
     document.getElementById('generateAuthorBtn')?.addEventListener('click', generateAuthorCSS);
+    document.getElementById('authorAddBtn')?.addEventListener('click', addAuthorToBlockList);
+    document.getElementById('blockAnonymousBtn')?.addEventListener('click', blockAnonymousFics);
 
     // --- Tags ---
     document.getElementById('fetchTagsBtn')?.addEventListener('click', fetchFicTags);
+    document.getElementById('tagAddBtn')?.addEventListener('click', addSelectedTagsToBlockList);
     document.getElementById('selectAllTagsBtn')?.addEventListener('click', selectAllTags);
     document.getElementById('clearAllTagsBtn')?.addEventListener('click', clearAllTags);
 
     // --- Fics ---
     document.getElementById('fetchFicsBtn')?.addEventListener('click', fetchAuthorFics);
+    document.getElementById('ficAddBtn')?.addEventListener('click', addSelectedFicsToBlockList);
     document.getElementById('selectAllFicsBtn')?.addEventListener('click', selectAllFics);
     document.getElementById('clearAllFicsBtn')?.addEventListener('click', clearAllFics);
 
@@ -586,33 +1015,55 @@ document.addEventListener('DOMContentLoaded', function () {
             copyToClipboard(this.dataset.copy);
         });
     });
-
     document.querySelectorAll('[data-download]').forEach(btn => {
         btn.addEventListener('click', function () {
             downloadCSS(this.dataset.download, this.dataset.filename || 'ao3-blocker.css');
         });
     });
 
-    // --- Delegated change events for dynamically created checkboxes ---
+    // --- Delegated change events for checkboxes ---
     document.querySelector('#tagOutput')?.addEventListener('change', function (e) {
         if (e.target.classList.contains('tag-checkbox')) {
             updateTagCSS();
         }
     });
-
     document.querySelector('#fandosList')?.addEventListener('change', function (e) {
         if (e.target.classList.contains('fic-checkbox')) {
             updateFicsCSS();
         }
     });
-});
 
+    // --- Block Anonymous toggle ---
+    const anonToggle = document.getElementById('blockAnonymousToggle');
+    if (anonToggle) {
+        chrome.storage.local.get(['blockAnonymous'], (result) => {
+            anonToggle.checked = result.blockAnonymous === true;
+        });
+        anonToggle.addEventListener('change', function () {
+            saveToStorage('blockAnonymous', this.checked);
+            if (this.checked) {
+                const css = `.blurb.work:not([class*="user-"]) { display: none !important; }`;
+                document.getElementById('authorCssCode').textContent = css;
+                document.getElementById('authorCssOutput').style.display = 'block';
+                document.getElementById('authorCopyBtnGroup').style.display = 'flex';
+            }
+        });
+    }
 
-// --- Block Anonymous Fics ---
-document.getElementById('blockAnonymousBtn')?.addEventListener('click', function () {
-    const css = `.blurb.work:not([class*="user-"]) {\n  display: none !important;\n}`;
-    document.getElementById('authorCssCode').textContent = css;
-    document.getElementById('authorCssOutput').style.display = 'block';
-    document.getElementById('authorCopyBtnGroup').style.display = 'flex';
-    showToast('CSS generated to hide anonymous fics', 'success');
+    // --- Render blocked lists ---
+    renderBlockedAuthors();
+    renderBlockedTags();
+    renderBlockedFics();
+
+    // --- Export / Import ---
+    document.getElementById('exportBtn')?.addEventListener('click', exportBlockList);
+    document.getElementById('importBtn')?.addEventListener('click', function () {
+        document.getElementById('importFileInput').click();
+    });
+    document.getElementById('importFileInput')?.addEventListener('change', function (e) {
+        if (this.files.length > 0) {
+            importBlockList(this.files[0]);
+            this.value = '';
+        }
+    });
 });
