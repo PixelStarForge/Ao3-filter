@@ -158,7 +158,7 @@ However, if you want to manually apply CSS (for example, to combine with an exis
 
 ---
 
-## 📄 License
+## License
 
 There is no license. Feel free to clone, steal, copy, or do anything with this repo.
 
