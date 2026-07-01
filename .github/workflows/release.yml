@@ -1,9 +1,12 @@
-name: Release with Zip
+name: Create Release Zip
 
 on:
   push:
     tags:
-      - 'v*'   # Triggers when you push a tag like v2.0.0
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,24 +16,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create Zip Archive
+      - name: Create lightweight zip
         run: |
-          # Create the zip with only essential files
-          zip -r ao3-filter.zip \
-            manifest.json \
-            content.js \
-            background.js \
-            ao3_css_generator.html \
-            style.css \
-            modules/ \
-            photos/ \
-            README.md \
+          zip -r ao3-filter.zip . \
             -x "*.git*" \
             -x ".github/*" \
-            -x "*.log" \
-            -x "*.tmp"
+            -x "photos/*" \
+            -x "*.md" \
+            -x "LICENSE" \
+            -x "README.md"
 
-      - name: Create Release and Upload Zip
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: ao3-filter.zip
