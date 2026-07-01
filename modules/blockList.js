@@ -1,4 +1,4 @@
-import { getFromStoragePromise, saveToStorage } from './storage.js';
+import { getFromStoragePromise, saveToStoragePromise } from './storage.js';
 import { decodeHTML, showToast } from './utils.js';
 
 // ---------- CRUD operations ----------
@@ -35,20 +35,22 @@ export async function addToBlocked(type, items) {
         });
     }
 
-    saveToStorage(key, JSON.stringify(list));
-    // Re‑render the UI
+    await saveToStoragePromise(key, JSON.stringify(list));
     if (type === 'author') renderBlockedAuthors();
     else if (type === 'tag') renderBlockedTags();
     else if (type === 'fic') renderBlockedFics();
 
-    injectCSSToAllTabs
+
+updateStatsBar();
+    injectCSSToAllTabs();
 }
 
 export async function removeFromBlocked(type, value) {
     const keyMap = {
         'author': 'blockedAuthors',
         'tag': 'blockedTags',
-        'fic': 'blockedFics'
+        'fic': 'blockedFics',
+        'language': 'blockedLanguages'
     };
     const key = keyMap[type];
     if (!key) return;
@@ -67,13 +69,20 @@ export async function removeFromBlocked(type, value) {
         list = list.filter(item => item.encoded !== value);
     } else if (type === 'fic') {
         list = list.filter(item => item.id !== value);
+    } else if (type === 'language') {
+        list = list.filter(item => item.code !== value);
     }
 
-    saveToStorage(key, JSON.stringify(list));
+    await saveToStoragePromise(key, JSON.stringify(list));
     if (type === 'author') renderBlockedAuthors();
     else if (type === 'tag') renderBlockedTags();
     else if (type === 'fic') renderBlockedFics();
+    else if (type === 'language') renderBlockedLanguages();
+
+
+    updateStatsBar();
     showToast(`${type} removed`, 'info');
+    injectCSSToAllTabs();
 }
 
 // ---------- Render functions ----------
@@ -231,12 +240,89 @@ export async function renderBlockedFics() {
     });
 }
 
+export async function renderBlockedLanguages() {
+    const container = document.getElementById('blockedLanguagesList');
+    if (!container) return;
+    const data = await getFromStoragePromise('blockedLanguages');
+    let list = [];
+    if (typeof data === 'string') {
+        try { list = JSON.parse(data); } catch (e) { list = []; }
+    } else if (Array.isArray(data)) {
+        list = data;
+    }
+    while (container.firstChild) container.removeChild(container.firstChild);
+    if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = 'No languages blocked.';
+        container.appendChild(empty);
+        return;
+    }
+    list.forEach(lang => {
+        const chip = document.createElement('span');
+        chip.className = 'blocked-chip';
+        chip.appendChild(document.createTextNode(lang.display + ' '));
+        const btn = document.createElement('button');
+        btn.className = 'remove-chip';
+        btn.dataset.type = 'language';
+        btn.dataset.value = lang.code;
+        btn.textContent = '✕';
+        chip.appendChild(btn);
+        container.appendChild(chip);
+    });
+    container.querySelectorAll('.remove-chip').forEach(btn => {
+        btn.addEventListener('click', function () {
+            removeFromBlocked('language', this.dataset.value);
+        });
+    });
+}
+
+// ---------- Language blocking ----------
+export async function addBlockedLanguage(code, display) {
+    console.log('addBlockedLanguage called with:', code, display);
+    const key = 'blockedLanguages';
+    const existing = await getFromStoragePromise(key);
+    let list = [];
+    if (typeof existing === 'string') {
+        try { list = JSON.parse(existing); } catch (e) { list = []; }
+    } else if (Array.isArray(existing)) {
+        list = existing;
+    }
+    if (!list.some(l => l.code === code)) {
+        list.push({ code, display });
+        await saveToStoragePromise(key, JSON.stringify(list));
+        renderBlockedLanguages();
+        updateStatsBar();
+        injectCSSToAllTabs();
+        console.log('Language saved:', list);
+    } else {
+        console.log('Language already blocked:', code);
+    }
+}
+
+export async function removeBlockedLanguage(code) {
+    const key = 'blockedLanguages';
+    const existing = await getFromStoragePromise(key);
+    let list = [];
+    if (typeof existing === 'string') {
+        try { list = JSON.parse(existing); } catch (e) { list = []; }
+    } else if (Array.isArray(existing)) {
+        list = existing;
+    }
+    list = list.filter(l => l.code !== code);
+    await saveToStoragePromise(key, JSON.stringify(list));
+    renderBlockedLanguages();
+    updateStatsBar();
+    injectCSSToAllTabs();
+}
+
 // ---------- Generate combined CSS (used by export & content script) ----------
 export async function generateCSSFromPrefs() {
     const authors = await getFromStoragePromise('blockedAuthors');
     const tags = await getFromStoragePromise('blockedTags');
     const fics = await getFromStoragePromise('blockedFics');
     const anonymous = await getFromStoragePromise('blockAnonymous');
+    const languages = await getFromStoragePromise('blockedLanguages');
 
     let css = '';
 
@@ -276,40 +362,115 @@ export async function generateCSSFromPrefs() {
         css += `.blurb.work[id*="work_${id}"] { display: none !important; }\n`;
     });
 
+    let parsedLanguages = [];
+    if (typeof languages === 'string') {
+        try { parsedLanguages = JSON.parse(languages); } catch (e) { }
+    } else if (Array.isArray(languages)) {
+        parsedLanguages = languages;
+    }
+    parsedLanguages.forEach(lang => {
+        css += `li.work.blurb:has(dl.stats dd.language[lang="${lang.code}"]) { display: none !important; }\n`;
+    });
+
     return css;
 }
 
+// ---------- Force injection to all tabs ----------
 function injectCSSToAllTabs() {
-    chrome.storage.local.get(['blockedAuthors', 'blockedTags', 'blockedFics', 'blockAnonymous'], (result) => {
-        // Parse the stored data (same logic as content.js)
-        let authors = result.blockedAuthors || [];
-        if (typeof authors === 'string') try { authors = JSON.parse(authors); } catch (e) { authors = []; }
-        let tags = result.blockedTags || [];
-        if (typeof tags === 'string') try { tags = JSON.parse(tags); } catch (e) { tags = []; }
-        let fics = result.blockedFics || [];
-        if (typeof fics === 'string') try { fics = JSON.parse(fics); } catch (e) { fics = []; }
+    chrome.storage.local.get(
+        ['blockedAuthors', 'blockedTags', 'blockedFics', 'blockAnonymous', 'blockedLanguages'],
+        (result) => {
+            let authors = result.blockedAuthors || [];
+            if (typeof authors === 'string') try { authors = JSON.parse(authors); } catch (e) { authors = []; }
+            let tags = result.blockedTags || [];
+            if (typeof tags === 'string') try { tags = JSON.parse(tags); } catch (e) { tags = []; }
+            let fics = result.blockedFics || [];
+            if (typeof fics === 'string') try { fics = JSON.parse(fics); } catch (e) { fics = []; }
+            let languages = result.blockedLanguages || [];
+            if (typeof languages === 'string') try { languages = JSON.parse(languages); } catch (e) { languages = []; }
 
-        let css = '';
-        if (result.blockAnonymous === true) {
-            css += `.blurb.work:not([class*="user-"]) { display: none !important; }\n`;
-        }
-        authors.forEach(author => {
-            css += `.blurb:has(a[href*="/users/${author}/pseuds"]) { display: none !important; }\n`;
-        });
-        tags.forEach(tag => {
-            const encoded = tag.encoded || tag;
-            css += `.blurb:has(a[href*="${encoded}"]) { display: none !important; }\n`;
-        });
-        fics.forEach(fic => {
-            const id = fic.id || fic;
-            css += `.blurb.work[id*="work_${id}"] { display: none !important; }\n`;
-        });
-
-        // Send to all AO3 tabs
-        chrome.tabs.query({ url: '*://archiveofourown.org/*' }, (tabs) => {
-            tabs.forEach(tab => {
-                chrome.tabs.sendMessage(tab.id, { action: 'injectCSS', css: css }).catch(() => { });
+            let css = '';
+            if (result.blockAnonymous === true) {
+                css += `.blurb.work:not([class*="user-"]) { display: none !important; }\n`;
+            }
+            authors.forEach(author => {
+                css += `.blurb:has(a[href*="/users/${author}/pseuds"]) { display: none !important; }\n`;
             });
-        });
-    });
+            tags.forEach(tag => {
+                const encoded = tag.encoded || tag;
+                css += `.blurb:has(a[href*="${encoded}"]) { display: none !important; }\n`;
+            });
+            fics.forEach(fic => {
+                const id = fic.id || fic;
+                css += `.blurb.work[id*="work_${id}"] { display: none !important; }\n`;
+            });
+            languages.forEach(lang => {
+                css += `li.work.blurb:has(dl.stats dd.language[lang="${lang.code}"]) { display: none !important; }\n`;
+            });
+
+            chrome.tabs.query({ url: '*://archiveofourown.org/*' }, (tabs) => {
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, { action: 'injectCSS', css: css }).catch(() => { });
+                });
+            });
+        }
+    );
+}
+
+
+// ---------- Stats Bar (compact, above tabs) ----------
+export function updateStatsBar() {
+    // Get all raw storage values
+    chrome.storage.local.get(
+        ['blockedAuthors', 'blockedTags', 'blockedFics', 'blockedLanguages'],
+        (result) => {
+            let authorCount = 0, tagCount = 0, ficCount = 0, langCount = 0;
+
+            // Parse authors
+            let authors = result.blockedAuthors || [];
+            if (typeof authors === 'string') {
+                try { authors = JSON.parse(authors); } catch (e) { authors = []; }
+            }
+            authorCount = Array.isArray(authors) ? authors.length : 0;
+
+            // Parse tags
+            let tags = result.blockedTags || [];
+            if (typeof tags === 'string') {
+                try { tags = JSON.parse(tags); } catch (e) { tags = []; }
+            }
+            tagCount = Array.isArray(tags) ? tags.length : 0;
+
+            // Parse fics
+            let fics = result.blockedFics || [];
+            if (typeof fics === 'string') {
+                try { fics = JSON.parse(fics); } catch (e) { fics = []; }
+            }
+            ficCount = Array.isArray(fics) ? fics.length : 0;
+
+            // Parse languages
+            let langs = result.blockedLanguages || [];
+            if (typeof langs === 'string') {
+                try { langs = JSON.parse(langs); } catch (e) { langs = []; }
+            }
+            langCount = Array.isArray(langs) ? langs.length : 0;
+
+            const total = authorCount + tagCount + ficCount + langCount;
+
+            // Update DOM
+            const authorEl = document.getElementById('statAuthors');
+            const tagEl = document.getElementById('statTags');
+            const ficEl = document.getElementById('statFics');
+            const langEl = document.getElementById('statLanguages');
+            const totalEl = document.getElementById('statTotal');
+
+            if (authorEl) authorEl.textContent = authorCount;
+            if (tagEl) tagEl.textContent = tagCount;
+            if (ficEl) ficEl.textContent = ficCount;
+            if (langEl) langEl.textContent = langCount;
+            if (totalEl) totalEl.textContent = total;
+
+            // Also update the detailed stats in "My Blocks" if that function exists
+            if (typeof updateStatsBar === 'function') updateStatsBar();
+        }
+    );
 }

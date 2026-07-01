@@ -4,7 +4,9 @@ import {
     renderBlockedAuthors,
     renderBlockedTags,
     renderBlockedFics,
-    generateCSSFromPrefs
+    generateCSSFromPrefs,
+    renderBlockedLanguages,
+    updateStatsBar
 } from './blockList.js';
 import {
     generateAuthorCSS,
@@ -144,6 +146,8 @@ document.addEventListener('DOMContentLoaded', function () {
     renderBlockedAuthors();
     renderBlockedTags();
     renderBlockedFics();
+    renderBlockedLanguages();
+    updateStatsBar();
 
     // --- Export / Import ---
     document.getElementById('exportBtn')?.addEventListener('click', exportBlockList);

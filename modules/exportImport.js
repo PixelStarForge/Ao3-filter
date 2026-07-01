@@ -1,14 +1,15 @@
 import { getFromStoragePromise, saveToStorage } from './storage.js';
 import { showToast } from './utils.js';
-import { renderBlockedAuthors, renderBlockedTags, renderBlockedFics, generateCSSFromPrefs } from './blockList.js';
+import { renderBlockedAuthors, renderBlockedTags, renderBlockedFics, generateCSSFromPrefs, renderBlockedLanguages } from './blockList.js';
 
 export async function exportBlockList() {
     const authors = await getFromStoragePromise('blockedAuthors');
     const tags = await getFromStoragePromise('blockedTags');
     const fics = await getFromStoragePromise('blockedFics');
     const anonymous = await getFromStoragePromise('blockAnonymous');
+    const languages = await getFromStoragePromise('blockedLanguages');
 
-    let parsedAuthors = [], parsedTags = [], parsedFics = [];
+    let parsedAuthors = [], parsedTags = [], parsedFics = [], parsedLanguages = [];
 
     if (typeof authors === 'string') {
         try { parsedAuthors = JSON.parse(authors); } catch (e) { }
@@ -25,12 +26,18 @@ export async function exportBlockList() {
     } else if (Array.isArray(fics)) {
         parsedFics = fics;
     }
+    if (typeof languages === 'string') {
+        try { parsedLanguages = JSON.parse(languages); } catch (e) { }
+    } else if (Array.isArray(languages)) {
+        parsedLanguages = languages;
+    }
 
     const data = {
         version: '2.0',
         blockedAuthors: parsedAuthors,
         blockedTags: parsedTags,
         blockedFics: parsedFics,
+        blockedLanguages: parsedLanguages,
         blockAnonymous: anonymous === true
     };
 
@@ -48,8 +55,9 @@ export async function exportCSS() {
     const authors = await getFromStoragePromise('blockedAuthors');
     const tags = await getFromStoragePromise('blockedTags');
     const fics = await getFromStoragePromise('blockedFics');
+    const languages = await getFromStoragePromise('blockedLanguages');
 
-    let parsedAuthors = [], parsedTags = [], parsedFics = [];
+    let parsedAuthors = [], parsedTags = [], parsedFics = [], parsedLanguages = [];
 
     if (typeof authors === 'string') {
         try { parsedAuthors = JSON.parse(authors); } catch (e) { }
@@ -65,6 +73,11 @@ export async function exportCSS() {
         try { parsedFics = JSON.parse(fics); } catch (e) { }
     } else if (Array.isArray(fics)) {
         parsedFics = fics;
+    }
+    if (typeof languages === 'string') {
+        try { parsedLanguages = JSON.parse(languages); } catch (e) { }
+    } else if (Array.isArray(languages)) {
+        parsedLanguages = languages;
     }
 
     let css = '/* Generated AO3 Filter CSS - Do not edit manually */\n\n';
@@ -93,6 +106,14 @@ export async function exportCSS() {
         });
         css += '\n';
     }
+    if (parsedLanguages.length > 0) {
+        css += '/* Blocked Languages */\n';
+        parsedLanguages.forEach(lang => {
+            const escaped = lang.code.replace(/"/g, '\\"');
+            css += `dl.stats dd.language[lang="${escaped}"] { display: none !important; }\n`;
+        });
+        css += '\n';
+    }
 
     const blob = new Blob([css], { type: 'text/css' });
     const url = URL.createObjectURL(blob);
@@ -116,11 +137,13 @@ export function importBlockList(file) {
             if (data.blockedAuthors) saveToStorage('blockedAuthors', JSON.stringify(data.blockedAuthors));
             if (data.blockedTags) saveToStorage('blockedTags', JSON.stringify(data.blockedTags));
             if (data.blockedFics) saveToStorage('blockedFics', JSON.stringify(data.blockedFics));
+            if (data.blockedLanguages) saveToStorage('blockedLanguages', JSON.stringify(data.blockedLanguages));
             if (data.blockAnonymous !== undefined) saveToStorage('blockAnonymous', data.blockAnonymous);
 
             renderBlockedAuthors();
             renderBlockedTags();
             renderBlockedFics();
+            renderBlockedLanguages();
             const toggle = document.getElementById('blockAnonymousToggle');
             if (toggle) toggle.checked = data.blockAnonymous || false;
             showToast('Block list imported!', 'success');

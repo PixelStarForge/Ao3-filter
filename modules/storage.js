@@ -10,3 +10,9 @@ export function getFromStoragePromise(key) {
         });
     });
 }
+
+export function saveToStoragePromise(key, value) {
+    return new Promise((resolve) => {
+        chrome.storage.local.set({ [key]: value }, resolve);
+    });
+}

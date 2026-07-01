@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AO3 Filter",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Block unwanted fanworks on Archive of Our Own with custom CSS",
   "action": {
     "default_popup": "ao3_css_generator.html"

@@ -2,7 +2,7 @@
 
 **Block unwanted fanworks on Archive of Our Own with custom CSS.**
 
-AO3 Filter is a browser extension that helps you hide works you don't want to see on AO3 — by author, by tag, or by individual fic. It generates custom CSS that you can paste directly into your AO3 Site Skin.
+AO3 Filter is a browser extension that helps you hide works you don't want to see on AO3 — by author, by tag, by individual fic, or even by language. It generates custom CSS that you can paste directly into your AO3 Site Skin, or let the extension auto‑inject it for you.
 
 ---
 
@@ -22,12 +22,17 @@ This extension was built because i was tired of it and worst things was you coul
 
 - **Author Blocker** – Hide all works from a specific author.
 - **Tag Blocker** – Fetch tags from any work and select which ones to block.
+- **Language Blocker** – Block all works written in a specific language (fetched automatically from the work).
 - **Block Fics** – Load all works from an author and selectively hide individual fics.
+- **In-Page Blocking Buttons** – Quickly hide authors, tags, or individual works directly from the AO3 search page without opening the popup.
+- **Anonymous Blocking Toggle** – Show or hide all anonymous fics with a single click, right from the AO3 navigation bar.
 - **Persistent Storage & Auto-Injection** – Blocks are automatically saved and injected on every AO3 visit. No need to manually update Site Skins.
-- **My Blocks** – View, manage, and remove all your blocked authors, tags, and fics in one place.
+- **Live Stats Bar** – See at a glance how many authors, tags, fics, and languages you've blocked, right at the top of the popup.
+- **My Blocks** – View, manage, and remove all your blocked authors, tags, fics, and languages in one place.
 - **Import/Export** – Backup your block list as JSON or restore from a previously exported file.
 - **Copy & Download** – Copy generated CSS to clipboard or download as a `.css` file (for manual Site Skin use).
 - **Search** – Filter through fics with fuzzy search.
+- **Dark/Light Mode** – Toggle between dark and light themes to suit your preference.
 
 ---
 
@@ -55,14 +60,37 @@ This extension was built because i was tired of it and worst things was you coul
 
 Click the extension icon in your browser toolbar to open the popup. Your blocks are **applied** on every AO3 page you visit.
 
-### Author Blocker
+![Extension Popup Interface](photos/extension_popup.png)
+
+### In-Page Blocking (No Popup Needed)
+
+On any AO3 search results page, each work blurb now has three buttons:
+- **Hide Author** – Block all works by that author instantly.
+- **Hide Tags** – Open a popup to select specific tags from that work and block them.
+- **Hide Work** – Block that specific work.
+
+All blocks are applied immediately without refreshing the page.
+
+![In-Page Blocking Buttons](photos/three_button_in_page.png)
+
+### Anonymous Blocking Toggle
+
+A **"Hide Anonymous"** button appears in the AO3 top navigation bar (next to "Works", "Bookmarks", etc.). Click it to instantly hide all anonymous fics on the current page. Click it again to show them.
+
+This toggle works across all AO3 pages and is remembered even after you close the browser.
+
+![Anonymous Blocking Toggle in Navigation](photos/anonymous_inpage.png)
+
+### Popup Interface
+
+#### Author Blocker
 
 1. Paste an author's profile URL (e.g., `https://archiveofourown.org/users/username`).
 2. Click **Generate CSS** or press `Enter`.
 3. Click **➕ Add to Block List** to save the author to your blocks.
 4. Works from this author will now be hidden on AO3.
 
-### Tag Blocker
+#### Tag Blocker
 
 1. Paste a work URL (e.g., `https://archiveofourown.org/works/12345`).
 2. Click **Fetch Tags** or press `Enter`.
@@ -70,7 +98,9 @@ Click the extension icon in your browser toolbar to open the popup. Your blocks 
 4. Click **➕ Add Selected to Block List**.
 5. Works with these tags will now be hidden on AO3.
 
-### Block Fics
+**New: Language Blocking** – When you fetch tags, the work's language is also detected. Check the "Block Language" checkbox to hide all works in that language.
+
+#### Block Fics
 
 1. Paste an author's profile URL.
 2. Click **Load All Fics** or press `Enter`.
@@ -79,12 +109,12 @@ Click the extension icon in your browser toolbar to open the popup. Your blocks 
 5. Click **➕ Add Selected to Block List**.
 6. These fics will now be hidden on AO3.
 
-### My Blocks
+#### My Blocks
 
-View all your blocked authors, tags, and fics. You can:
+View all your blocked authors, tags, fics, and languages. You can:
 
 - Remove individual items by clicking the ✕ button
-- Toggle anonymous fic blocking
+- Toggle anonymous fic blocking (same as the in‑page toggle)
 - Export your block list as a JSON file
 - Import a previously exported block list
 

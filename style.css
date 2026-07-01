@@ -788,3 +788,112 @@ body.light .blocked-chip {
 body.light .empty-message {
     color: #999;
 }
+
+/* Stats Bar - larger, centered, card-like */
+.stats-bar {
+    background: #2d2d2d;
+    border-bottom: 2px solid #444;
+    padding: 12px 16px;
+    text-align: center;
+    transition: background 0.3s, border-color 0.3s;
+}
+
+body.light .stats-bar {
+    background: #f0f0f0;
+    border-bottom-color: #e0e0e0;
+}
+
+.stats-heading {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #8892f0;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+body.light .stats-heading {
+    color: #6c7ae0;
+}
+
+.stats-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 16px;
+    font-size: 0.95em;
+}
+
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #ccc;
+    padding: 4px 12px;
+    border-radius: 16px;
+    background: #3a3a3a;
+    transition: background 0.3s, color 0.3s;
+}
+
+body.light .stat-chip {
+    background: #e8e8e8;
+    color: #555;
+}
+
+.stat-chip .stat-label {
+    font-weight: 500;
+    color: #aaa;
+}
+
+body.light .stat-chip .stat-label {
+    color: #000000;
+}
+
+.stat-chip span:last-child {
+    font-weight: 700;
+    color: #e0e0e0;
+    min-width: 14px;
+    text-align: center;
+}
+
+body.light .stat-chip span:last-child {
+    color: #000;
+}
+
+.stat-chip.stat-total {
+    background: #8892f0;
+    color: #fff;
+    padding: 4px 16px;
+}
+
+body.light .stat-chip.stat-total {
+    background: #6c7ae0;
+    color: #fff;
+}
+
+.stat-chip.stat-total .stat-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.stat-chip.stat-total span:last-child {
+    color: #fff;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .stats-bar {
+        padding: 8px 10px;
+    }
+
+    .stats-heading {
+        font-size: 1em;
+    }
+
+    .stats-chips {
+        font-size: 0.8em;
+        gap: 4px 10px;
+    }
+
+    .stat-chip {
+        padding: 2px 8px;
+    }
+}
