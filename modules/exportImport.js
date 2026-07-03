@@ -85,32 +85,30 @@ export async function exportCSS() {
     if (parsedAuthors.length > 0) {
         css += '/* Blocked Authors */\n';
         parsedAuthors.forEach(author => {
-            const escaped = author.replace(/"/g, '\\"');
-            css += `li.blurb.banned[data-author-name="${escaped}"] { display: none !important; }\n`;
+            css += `.blurb:has(a[href*="/users/${author}/pseuds"]) { display: none !important; }\n`;
         });
         css += '\n';
     }
     if (parsedTags.length > 0) {
         css += '/* Blocked Tags */\n';
         parsedTags.forEach(tag => {
-            const encoded = tag.encoded.replace(/"/g, '\\"');
-            css += `li.blurb.banned[data-tag-id="${encoded}"] { display: none !important; }\n`;
+            const encoded = tag.encoded || tag;
+            css += `.blurb:has(a[href*="${encoded}"]) { display: none !important; }\n`;
         });
         css += '\n';
     }
     if (parsedFics.length > 0) {
         css += '/* Blocked Fics */\n';
         parsedFics.forEach(fic => {
-            const escaped = fic.id.replace(/"/g, '\\"');
-            css += `li[data-work-id="${escaped}"] { display: none !important; }\n`;
+            const id = fic.id || fic;
+            css += `.blurb.work[id*="work_${id}"] { display: none !important; }\n`;
         });
         css += '\n';
     }
     if (parsedLanguages.length > 0) {
         css += '/* Blocked Languages */\n';
         parsedLanguages.forEach(lang => {
-            const escaped = lang.code.replace(/"/g, '\\"');
-            css += `dl.stats dd.language[lang="${escaped}"] { display: none !important; }\n`;
+            css += `li.work.blurb:has(dl.stats dd.language[lang="${lang.code}"]) { display: none !important; }\n`;
         });
         css += '\n';
     }
