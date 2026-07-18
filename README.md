@@ -46,7 +46,7 @@ This extension was built because i was tired of it and worst things was you coul
 
 ### Firefox Add-ons
 
-*(Coming soon – link will be added once published)*
+[Firefox web extension](https://addons.mozilla.org/en-US/firefox/addon/ao3-filter-2005/)
 
 ### Manual Installation (Developer Mode)
 
